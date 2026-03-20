@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MVVM vs MVI: Choosing the Right Architecture — Wine Chit Paing</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../css/styles.css"/>
+<link rel="stylesheet" href="../css/blog.css"/>
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="../index.html#hero" class="nav-logo">WCP</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="../index.html#about">About</a></li>
+    <li><a href="../index.html#experience">Experience</a></li>
+    <li><a href="../index.html#projects">Apps</a></li>
+    <li><a href="../index.html#blog">Blog</a></li>
+    <li><a href="../index.html#education">Education</a></li>
+    <li><a href="../index.html#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<header class="blog-header">
+  <a href="../index.html#blog" class="blog-back">← Back to Blog</a>
+  <span class="blog-header-tag">Architecture</span>
+  <h1 class="blog-header-title">MVVM vs MVI: Choosing the Right Architecture for Your Android App</h1>
+  <p class="blog-header-meta"><span>Wine Chit Paing</span> · January 2026</p>
+</header>
+
+<article class="blog-content">
+  <p>After building production Android apps with both MVVM and MVI for over six years, I've developed strong opinions about when to use each. This isn't a theoretical comparison — it's a practical guide drawn from real apps serving tens of thousands of users.</p>
+
+  <h2>MVVM: The Workhorse</h2>
+  <p>Model-View-ViewModel has been my default architecture for most projects. It's straightforward, well-documented, and aligns perfectly with Android's lifecycle-aware components.</p>
+
+  <h3>How I Structure MVVM</h3>
+  <pre><code>class BookingViewModel(
+    private val repository: BookingRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(BookingUiState())
+    val uiState: StateFlow&lt;BookingUiState&gt; = _uiState.asStateFlow()
+
+    fun loadAvailableSlots(date: LocalDate) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            repository.getSlots(date)
+                .onSuccess { slots ->
+                    _uiState.update { it.copy(slots = slots, isLoading = false) }
+                }
+                .onFailure { error ->
+                    _uiState.update { it.copy(error = error.message, isLoading = false) }
+                }
+        }
+    }
+}
+
+data class BookingUiState(
+    val slots: List&lt;TimeSlot&gt; = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null
+)</code></pre>
+
+  <h3>When MVVM Shines</h3>
+  <ul>
+    <li><strong>CRUD-heavy screens</strong> — forms, lists, detail views</li>
+    <li><strong>Simple state</strong> — a few independent pieces of data</li>
+    <li><strong>Small teams</strong> — less ceremony, faster onboarding</li>
+    <li><strong>Most screens in most apps</strong> — it covers 80% of use cases well</li>
+  </ul>
+
+  <h2>MVI: The State Machine</h2>
+  <p>Model-View-Intent treats the UI as a state machine. Every user action is an Intent, every state transition is explicit, and the UI is always a pure function of state.</p>
+
+  <h3>How I Structure MVI</h3>
+  <pre><code>class ChatCubit(
+    private val repository: ChatRepository
+) : Cubit&lt;ChatState&gt;(ChatState.Initial) {
+
+    fun processIntent(intent: ChatIntent) {
+        when (intent) {
+            is ChatIntent.SendMessage -> sendMessage(intent.text)
+            is ChatIntent.LoadHistory -> loadHistory()
+            is ChatIntent.RetryFailed -> retryMessage(intent.messageId)
+        }
+    }
+
+    private fun sendMessage(text: String) {
+        val currentMessages = (state as? ChatState.Active)?.messages ?: return
+        emit(ChatState.Active(
+            messages = currentMessages + PendingMessage(text),
+            isStreaming = true
+        ))
+        // Stream response via SSE...
+    }
+}
+
+sealed class ChatState {
+    object Initial : ChatState()
+    object Loading : ChatState()
+    data class Active(
+        val messages: List&lt;ChatMessage&gt;,
+        val isStreaming: Boolean = false
+    ) : ChatState()
+    data class Error(val message: String) : ChatState()
+}
+
+sealed class ChatIntent {
+    data class SendMessage(val text: String) : ChatIntent()
+    object LoadHistory : ChatIntent()
+    data class RetryFailed(val messageId: String) : ChatIntent()
+}</code></pre>
+
+  <h3>When MVI Shines</h3>
+  <ul>
+    <li><strong>Complex state transitions</strong> — chat, streaming, multi-step flows</li>
+    <li><strong>State needs to be predictable</strong> — every possible state is explicitly defined</li>
+    <li><strong>Debugging is critical</strong> — you can log every intent and state change</li>
+    <li><strong>Multiple data sources</strong> — SSE streams, WebSockets, push notifications updating the same screen</li>
+  </ul>
+
+  <h2>Real-World Comparison</h2>
+  <p>Here's how I chose between them in production apps:</p>
+
+  <table style="width:100%; border-collapse:collapse; margin:1.5rem 0;">
+    <tr style="border-bottom:2px solid var(--black);">
+      <th style="text-align:left; padding:0.75rem 0; font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase;">App</th>
+      <th style="text-align:left; padding:0.75rem 0; font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase;">Architecture</th>
+      <th style="text-align:left; padding:0.75rem 0; font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase;">Why</th>
+    </tr>
+    <tr style="border-bottom:1px solid #eee;">
+      <td style="padding:0.75rem 0;">Kcuts Go</td><td style="padding:0.75rem 0;">MVVM</td><td style="padding:0.75rem 0;">Booking flow is linear, state is simple</td>
+    </tr>
+    <tr style="border-bottom:1px solid #eee;">
+      <td style="padding:0.75rem 0;">SPOTV NOW</td><td style="padding:0.75rem 0;">MVI</td><td style="padding:0.75rem 0;">Live streaming + purchases + DRM = complex state</td>
+    </tr>
+    <tr style="border-bottom:1px solid #eee;">
+      <td style="padding:0.75rem 0;">AIA+ Myanmar</td><td style="padding:0.75rem 0;">MVI</td><td style="padding:0.75rem 0;">Insurance forms with conditional logic and validation</td>
+    </tr>
+    <tr style="border-bottom:1px solid #eee;">
+      <td style="padding:0.75rem 0;">Better HR</td><td style="padding:0.75rem 0;">MVVM</td><td style="padding:0.75rem 0;">Standard CRUD with chat feature</td>
+    </tr>
+    <tr>
+      <td style="padding:0.75rem 0;">Zsolt Lite</td><td style="padding:0.75rem 0;">MVI (BLoC)</td><td style="padding:0.75rem 0;">AI chat streaming, auth flows, onboarding state machine</td>
+    </tr>
+  </table>
+
+  <h2>My Decision Framework</h2>
+  <p>When a new feature or app lands on my desk, I ask three questions:</p>
+  <ol>
+    <li><strong>How many distinct states can this screen be in?</strong> If I can count them on one hand, MVVM. If I need a diagram, MVI.</li>
+    <li><strong>Are there concurrent data sources?</strong> If the screen reacts to multiple streams of data, MVI handles the merging more gracefully.</li>
+    <li><strong>How important is state debugging?</strong> If a bug in this feature could cost users money or data, MVI's explicit state log is invaluable.</li>
+  </ol>
+
+  <h2>The Honest Truth</h2>
+  <p>Most apps don't need MVI everywhere. I typically use MVVM as the default and switch to MVI for the screens that demand it. In the Kcuts Go app, 90% of screens are MVVM — only the booking confirmation flow with its payment integration uses MVI patterns.</p>
+
+  <blockquote>The best architecture is the one your team can maintain at 2 AM when production is down. Choose clarity over cleverness.</blockquote>
+
+  <p>Don't let architecture debates slow you down. Pick the simpler option, ship it, and refactor when complexity actually arrives — not when you imagine it might.</p>
+</article>
+
+<div class="blog-footer-nav">
+  <a href="jetpack-compose-design-system.html">← Previous: Compose Design System</a>
+  <a href="crash-free-android.html">Next: 98% Crash-Free →</a>
+</div>
+
+<footer>
+  <span>© 2026 Wine Chit Paing</span>
+  <span>Senior Mobile Developer · Bangkok, Thailand</span>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

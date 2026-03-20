@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Achieving 98% Crash-Free: My Approach to Android Stability — Wine Chit Paing</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../css/styles.css"/>
+<link rel="stylesheet" href="../css/blog.css"/>
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="../index.html#hero" class="nav-logo">WCP</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="../index.html#about">About</a></li>
+    <li><a href="../index.html#experience">Experience</a></li>
+    <li><a href="../index.html#projects">Apps</a></li>
+    <li><a href="../index.html#blog">Blog</a></li>
+    <li><a href="../index.html#education">Education</a></li>
+    <li><a href="../index.html#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<header class="blog-header">
+  <a href="../index.html#blog" class="blog-back">← Back to Blog</a>
+  <span class="blog-header-tag">Quality</span>
+  <h1 class="blog-header-title">Achieving 98% Crash-Free: My Approach to Android Stability</h1>
+  <p class="blog-header-meta"><span>Wine Chit Paing</span> · November 2025</p>
+</header>
+
+<article class="blog-content">
+  <p>Across multiple production apps — Kcuts Go (54K+ MAU), Boulder Movement (5.8K+ MAU), and Yoga Movement (14K+ MAU) — I've consistently maintained crash-free rates above 98%. This isn't luck. It's a systematic approach to stability that I've refined over six years of shipping Android apps.</p>
+
+  <h2>The Foundation: Crash Prevention Starts at Architecture</h2>
+  <p>Most crashes I've debugged in my career weren't caused by obscure edge cases. They were caused by predictable problems: null pointers, unhandled exceptions in network calls, lifecycle mismanagement. Good architecture eliminates entire categories of crashes before they happen.</p>
+
+  <h3>Kotlin-First, Null-Safe by Default</h3>
+  <p>Migrating from Java to Kotlin was the single biggest crash reduction move. Kotlin's type system catches null-related issues at compile time. In the Mother Finance app (my last Java-heavy project), ~35% of crashes were <code>NullPointerException</code>. In Kcuts Go (pure Kotlin), NPEs are virtually zero.</p>
+
+  <h3>Structured Concurrency with Coroutines</h3>
+  <p>Every async operation is scoped to the appropriate lifecycle:</p>
+  <pre><code>class BookingViewModel(
+    private val repository: BookingRepository
+) : ViewModel() {
+
+    fun confirmBooking(slot: TimeSlot) {
+        viewModelScope.launch {
+            try {
+                val result = repository.confirm(slot)
+                _uiState.update { it.copy(confirmation = result) }
+            } catch (e: CancellationException) {
+                throw e // Never swallow cancellation
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.toUserMessage()) }
+                crashlytics.recordException(e)
+            }
+        }
+    }
+}</code></pre>
+  <p>Key rules: never use <code>GlobalScope</code>, always let <code>CancellationException</code> propagate, and scope to <code>viewModelScope</code> or <code>lifecycleScope</code>.</p>
+
+  <h2>Testing Strategy: The Three Layers</h2>
+
+  <h3>Layer 1: Unit Tests with JUnit 4</h3>
+  <p>Every ViewModel and Repository gets unit tests. I focus on edge cases that would cause crashes in production:</p>
+  <ul>
+    <li>Empty lists and null responses from APIs</li>
+    <li>Network timeouts and malformed JSON</li>
+    <li>State transitions under rapid user interaction</li>
+    <li>Concurrent operations on shared state</li>
+  </ul>
+
+  <h3>Layer 2: Integration Tests</h3>
+  <p>I test the full data flow from API to UI state. Using MockWebServer, I simulate real server responses — including error responses, slow responses, and partial data. This catches serialization issues and error handling gaps that unit tests miss.</p>
+
+  <h3>Layer 3: UI Tests with Espresso</h3>
+  <p>Critical user flows get Espresso tests. For Kcuts Go, that means:</p>
+  <ul>
+    <li>Complete booking flow: browse → select slot → pay → confirm</li>
+    <li>Error recovery: network failure during payment → retry → success</li>
+    <li>Edge cases: back navigation during loading, rapid button taps</li>
+  </ul>
+
+  <h2>Proactive Crash Monitoring</h2>
+
+  <h3>Firebase Crashlytics: Beyond Default Setup</h3>
+  <p>I don't just install Crashlytics — I instrument it:</p>
+  <pre><code>// Custom keys for every screen
+crashlytics.setCustomKey("screen", "BookingConfirmation")
+crashlytics.setCustomKey("slot_id", slot.id)
+crashlytics.setCustomKey("payment_method", method.name)
+
+// Non-fatal logging for suspicious states
+if (slots.isEmpty() && !isFirstLoad) {
+    crashlytics.recordException(
+        IllegalStateException("Empty slots on reload - possible API issue")
+    )
+}</code></pre>
+  <p>Custom keys transform a generic stack trace into a complete debugging context. When a crash happens, I know exactly which screen, which data, and which user action triggered it.</p>
+
+  <h3>The "Zero New Crashes" Sprint Rule</h3>
+  <p>At Codigo, I introduced a rule: no sprint ships with known new crashes. If Crashlytics shows a new crash cluster after a release, it gets hotfixed before the next feature work begins. This sounds strict, but it keeps the crash-free rate from slowly degrading — the most common failure mode I've seen in Android teams.</p>
+
+  <h2>Common Crash Categories and Fixes</h2>
+
+  <h3>1. Fragment/Activity Lifecycle Crashes</h3>
+  <p>The classic <code>IllegalStateException: Can not perform this action after onSaveInstanceState</code>. Solution: use <code>Lifecycle</code>-aware components and never commit fragments from background callbacks.</p>
+
+  <h3>2. RecyclerView / LazyColumn IndexOutOfBounds</h3>
+  <p>Usually caused by list mutations during scroll. Solution: immutable lists with <code>DiffUtil</code> (RecyclerView) or proper <code>key()</code> usage (Compose).</p>
+
+  <h3>3. OOM on Image Loading</h3>
+  <p>Loading full-resolution images into ImageViews without resizing. Solution: use Coil or Glide with proper sizing, and add memory monitoring in debug builds.</p>
+
+  <h3>4. SSL/Network Crashes</h3>
+  <p>Unhandled <code>SSLHandshakeException</code> or <code>SocketTimeoutException</code>. Solution: wrap all network calls with proper error handling and configure sensible timeouts in OkHttp.</p>
+
+  <h2>The Mindset Shift</h2>
+  <p>Early in my career, I treated stability as something you fix after launch. Now I treat it as something you design for before writing the first line of code. Every architectural decision, every API integration, every state management choice is evaluated through the lens of "how will this fail?"</p>
+
+  <blockquote>A 98% crash-free rate doesn't mean your app is perfect. It means you've built systems that catch the remaining 2% before your users do.</blockquote>
+
+  <p>The apps I'm most proud of aren't the ones with the most features — they're the ones where users never think about stability because it just works.</p>
+</article>
+
+<div class="blog-footer-nav">
+  <a href="mvvm-vs-mvi.html">← Previous: MVVM vs MVI</a>
+  <a href="compose-multiplatform.html">Next: Going Multiplatform →</a>
+</div>
+
+<footer>
+  <span>© 2026 Wine Chit Paing</span>
+  <span>Senior Mobile Developer · Bangkok, Thailand</span>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Going Multiplatform: Rewriting an App with Compose Multiplatform — Wine Chit Paing</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../css/styles.css"/>
+<link rel="stylesheet" href="../css/blog.css"/>
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="../index.html#hero" class="nav-logo">WCP</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="../index.html#about">About</a></li>
+    <li><a href="../index.html#experience">Experience</a></li>
+    <li><a href="../index.html#projects">Apps</a></li>
+    <li><a href="../index.html#blog">Blog</a></li>
+    <li><a href="../index.html#education">Education</a></li>
+    <li><a href="../index.html#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<header class="blog-header">
+  <a href="../index.html#blog" class="blog-back">← Back to Blog</a>
+  <span class="blog-header-tag">Compose Multiplatform</span>
+  <h1 class="blog-header-title">Going Multiplatform: Rewriting an App with Compose Multiplatform</h1>
+  <p class="blog-header-meta"><span>Wine Chit Paing</span> · September 2025</p>
+</header>
+
+<article class="blog-content">
+  <p>When the SBS 2026 app (formerly NFQ Summit) needed to support both Android and iOS, we had a choice: maintain two native codebases, adopt Flutter, or try something newer — Compose Multiplatform. We chose the last option, and it fundamentally changed how I think about cross-platform development.</p>
+
+  <h2>Why Compose Multiplatform Over Flutter?</h2>
+  <p>The decision wasn't obvious. Flutter has a larger ecosystem and more battle-tested production apps. But our team had two strong advantages with Compose Multiplatform:</p>
+  <ul>
+    <li><strong>Existing Kotlin expertise:</strong> Our Android team was already fluent in Kotlin and Jetpack Compose. Zero learning curve for the UI layer.</li>
+    <li><strong>Shared business logic:</strong> Kotlin Multiplatform (KMP) let us share not just UI, but networking, data models, and business logic. Flutter would have required rewriting everything in Dart.</li>
+    <li><strong>Native interop:</strong> For platform-specific features like NFC, we could drop into native code seamlessly using <code>expect</code>/<code>actual</code> declarations.</li>
+  </ul>
+
+  <h2>The Migration Strategy</h2>
+  <p>We didn't rewrite everything at once. The migration happened in three phases:</p>
+
+  <h3>Phase 1: Shared Data Layer (2 weeks)</h3>
+  <p>We extracted models, API services, and repositories into a shared KMP module. This was the lowest-risk, highest-value move:</p>
+  <pre><code>// shared/src/commonMain
+data class SummitEvent(
+    val id: String,
+    val title: String,
+    val speaker: String,
+    val startTime: Instant,
+    val room: String
+)
+
+// shared/src/commonMain
+class EventRepository(
+    private val apiClient: ApiClient
+) {
+    suspend fun getEvents(): List&lt;SummitEvent&gt; {
+        return apiClient.get("/events").body()
+    }
+}</code></pre>
+
+  <h3>Phase 2: Shared UI Components (3 weeks)</h3>
+  <p>We moved Compose UI components into the shared module. Most screens worked identically on both platforms. The project structure looked like:</p>
+  <pre><code>shared/
+├── src/
+│   ├── commonMain/
+│   │   ├── models/
+│   │   ├── network/
+│   │   └── ui/
+│   │       ├── components/
+│   │       ├── screens/
+│   │       └── theme/
+│   ├── androidMain/    # Platform-specific implementations
+│   └── iosMain/        # Platform-specific implementations
+androidApp/             # Android entry point
+iosApp/                 # iOS entry point (SwiftUI wrapper)</code></pre>
+
+  <h3>Phase 3: Platform-Specific Features (2 weeks)</h3>
+  <p>NFC functionality, push notifications, and deep linking required platform-specific code. The <code>expect</code>/<code>actual</code> pattern made this clean:</p>
+  <pre><code>// commonMain
+expect class NfcReader {
+    fun startScanning()
+    fun stopScanning()
+    val scannedTag: StateFlow&lt;NfcTag?&gt;
+}
+
+// androidMain
+actual class NfcReader(context: Context) {
+    // Android NFC implementation
+}
+
+// iosMain
+actual class NfcReader() {
+    // CoreNFC implementation
+}</code></pre>
+
+  <h2>What Worked Brilliantly</h2>
+
+  <h3>UI Code Sharing: ~85%</h3>
+  <p>The vast majority of our UI code is shared. Screens, components, themes, navigation — all written once, running on both platforms. The Compose rendering engine produces truly native-feeling results on iOS, which surprised me.</p>
+
+  <h3>Single Source of Truth for Business Logic</h3>
+  <p>No more "did we fix that bug on iOS too?" Every fix to shared code applies everywhere. This alone justified the migration.</p>
+
+  <h3>Developer Velocity</h3>
+  <p>Our team of Android developers could now ship iOS features without learning Swift from scratch. The iOS-specific code (AppDelegate, SwiftUI wrapper) was minimal — maybe 500 lines total.</p>
+
+  <h2>What Was Challenging</h2>
+
+  <h3>iOS-Specific UI Expectations</h3>
+  <p>iOS users expect certain platform conventions — swipe-to-go-back, specific scroll physics, SF Symbols. We had to add platform checks for these:</p>
+  <pre><code>@Composable
+fun PlatformBackHandler(onBack: () -> Unit) {
+    if (getPlatform() == Platform.IOS) {
+        // iOS handles swipe-to-back natively
+    } else {
+        BackHandler(onBack = onBack)
+    }
+}</code></pre>
+
+  <h3>Build Times</h3>
+  <p>KMP builds are slower than single-platform builds, especially for iOS. We mitigated this with build caching and by running iOS builds less frequently during development — most UI work could be previewed on Android first.</p>
+
+  <h3>Library Ecosystem</h3>
+  <p>Not every Android library has a KMP equivalent. We had to find or build multiplatform alternatives for image loading, local storage, and analytics. The ecosystem is growing fast, but gaps still exist.</p>
+
+  <h2>Results</h2>
+  <ul>
+    <li><strong>85% code shared</strong> between Android and iOS</li>
+    <li><strong>Development time reduced by ~50%</strong> compared to maintaining two native codebases</li>
+    <li><strong>Single team</strong> delivering both platforms instead of separate Android and iOS teams</li>
+    <li><strong>Production-grade app</strong> deployed to both App Store and Play Store</li>
+  </ul>
+
+  <h2>Would I Do It Again?</h2>
+  <p>Absolutely. Compose Multiplatform is now my recommended approach for teams that already know Kotlin. For the Zsolt Lite project at Gradion Thailand, we chose Flutter instead because it was a client requirement and the team wanted to expand their Flutter expertise. Both are valid choices — the right tool depends on the team and context.</p>
+
+  <blockquote>Cross-platform doesn't mean compromise. With Compose Multiplatform, we shipped a better app faster — not a watered-down version of two native apps.</blockquote>
+
+  <p>The future of mobile development is multiplatform. The question isn't whether to share code between platforms — it's how much and with which tool. For Kotlin teams, Compose Multiplatform is the answer I've been waiting for.</p>
+</article>
+
+<div class="blog-footer-nav">
+  <a href="crash-free-android.html">← Previous: 98% Crash-Free</a>
+  <span></span>
+</div>
+
+<footer>
+  <span>© 2026 Wine Chit Paing</span>
+  <span>Senior Mobile Developer · Bangkok, Thailand</span>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

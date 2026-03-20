@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Jetpack Compose UI: Leading a Design System from Scratch — Wine Chit Paing</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../css/styles.css"/>
+<link rel="stylesheet" href="../css/blog.css"/>
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="../index.html#hero" class="nav-logo">WCP</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="../index.html#about">About</a></li>
+    <li><a href="../index.html#experience">Experience</a></li>
+    <li><a href="../index.html#projects">Apps</a></li>
+    <li><a href="../index.html#blog">Blog</a></li>
+    <li><a href="../index.html#education">Education</a></li>
+    <li><a href="../index.html#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<header class="blog-header">
+  <a href="../index.html#blog" class="blog-back">← Back to Blog</a>
+  <span class="blog-header-tag">Jetpack Compose</span>
+  <h1 class="blog-header-title">Jetpack Compose UI: Leading a Design System from Scratch</h1>
+  <p class="blog-header-meta"><span>Wine Chit Paing</span> · March 2026</p>
+</header>
+
+<article class="blog-content">
+  <p>When I first proposed building a complete design system with Jetpack Compose across multiple production apps at Codigo, the response was a mix of excitement and skepticism. Compose was still maturing, and betting our entire UI layer on it was a bold move. Two years later, that decision became one of the most impactful technical choices I've made in my career.</p>
+
+  <h2>Why Build a Design System?</h2>
+  <p>At Codigo, we were maintaining six Android apps simultaneously — Kcuts Go, Boulder Movement, Yoga Movement, SPOTV NOW, AIA+, and Rezeve. Each had its own styling, custom views, and XML layouts. Every design change meant updating six codebases. Bug fixes in one app's UI didn't automatically carry over to others.</p>
+  <p>The inconsistency was costing us time, introducing bugs, and making onboarding new developers painfully slow. We needed a shared language — a design system that could unify our apps while still allowing each to have its own identity.</p>
+
+  <h2>Starting with Foundations</h2>
+  <p>I began with the atomic design methodology, adapted for Compose:</p>
+  <ul>
+    <li><strong>Tokens:</strong> Colors, typography, spacing, and elevation defined as Compose theme values. Each app could override these tokens to maintain its brand identity.</li>
+    <li><strong>Atoms:</strong> Basic composables — buttons, text fields, chips, icons. These were the smallest reusable units.</li>
+    <li><strong>Molecules:</strong> Combinations of atoms — search bars, list items, card headers.</li>
+    <li><strong>Organisms:</strong> Complex UI sections — booking cards, payment forms, video player controls.</li>
+  </ul>
+
+  <h2>The Architecture Behind It</h2>
+  <p>The design system lived in a shared Kotlin module that each app included as a dependency:</p>
+  <pre><code>// design-system module structure
+designsystem/
+├── theme/
+│   ├── AppTheme.kt
+│   ├── Color.kt
+│   ├── Typography.kt
+│   └── Shape.kt
+├── components/
+│   ├── buttons/
+│   ├── inputs/
+│   ├── cards/
+│   └── navigation/
+└── tokens/
+    ├── Spacing.kt
+    └── Elevation.kt</code></pre>
+  <p>Each app would wrap the shared theme with its own brand tokens:</p>
+  <pre><code>@Composable
+fun KcutsGoTheme(content: @Composable () -> Unit) {
+    AppTheme(
+        colors = kcutsColorScheme,
+        typography = kcutsTypography,
+        content = content
+    )
+}</code></pre>
+
+  <h2>Challenges We Faced</h2>
+  <h3>1. Compose Was Still Evolving</h3>
+  <p>APIs changed between alpha, beta, and stable releases. We had to maintain a migration guide and dedicate time each sprint to updating deprecated APIs. The key lesson: pin your Compose BOM version and upgrade deliberately, not reactively.</p>
+
+  <h3>2. Convincing the Team</h3>
+  <p>Not everyone was comfortable with Compose initially. I organized weekly "Compose labs" — pair programming sessions where we'd rebuild an existing XML screen in Compose together. Seeing a 200-line XML layout reduced to 60 lines of declarative code was usually enough to convert skeptics.</p>
+
+  <h3>3. Performance Pitfalls</h3>
+  <p>Early on, we hit recomposition issues. Lists would lag, animations would stutter. I established strict rules:</p>
+  <ul>
+    <li>Always use <code>remember</code> and <code>derivedStateOf</code> for computed values</li>
+    <li>Mark stable classes with <code>@Immutable</code> or <code>@Stable</code></li>
+    <li>Use <code>key()</code> in <code>LazyColumn</code> items</li>
+    <li>Profile with Layout Inspector before and after changes</li>
+  </ul>
+
+  <h2>The Results</h2>
+  <p>After fully migrating to the Compose design system:</p>
+  <ul>
+    <li><strong>Development speed increased by ~40%</strong> for new features — components were pre-built and tested.</li>
+    <li><strong>UI bugs dropped by 60%</strong> — shared components meant fixes applied everywhere.</li>
+    <li><strong>Onboarding time halved</strong> — new developers learned one system, not six different UI approaches.</li>
+    <li><strong>All apps maintained 98%+ crash-free rates</strong> throughout the migration.</li>
+  </ul>
+
+  <h2>What I'd Do Differently</h2>
+  <p>If I were starting today, I'd invest more in Compose Previews from day one. We added preview annotations late, and it slowed our design review process. I'd also adopt Compose Multiplatform earlier — the shared UI layer we built for Android would have been a natural fit for iOS, which is exactly what I'm doing now at Gradion Thailand.</p>
+
+  <blockquote>A design system isn't just a component library. It's a shared vocabulary between designers and developers — a contract that says "this is how we build things here."</blockquote>
+
+  <p>Leading this initiative taught me that the hardest part of a design system isn't the code — it's the alignment. Getting designers, developers, and product managers to agree on constraints and conventions requires patience, communication, and a willingness to iterate. The technical implementation is the easy part.</p>
+</article>
+
+<div class="blog-footer-nav">
+  <span></span>
+  <a href="mvvm-vs-mvi.html">Next: MVVM vs MVI →</a>
+</div>
+
+<footer>
+  <span>© 2026 Wine Chit Paing</span>
+  <span>Senior Mobile Developer · Bangkok, Thailand</span>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>
