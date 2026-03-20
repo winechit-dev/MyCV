@@ -33,128 +33,87 @@
 </header>
 
 <article class="blog-content">
-  <p>When the SBS 2026 app (formerly NFQ Summit) needed to support both Android and iOS, I took full ownership of the rewrite — architecture, implementation, and delivery. No separate iOS team, no pair programming partner — just me, Kotlin, Claude Code, and a deadline. I chose Compose Multiplatform as the framework and Claude Code as my AI-powered development partner. Together, this combination fundamentally changed how I think about cross-platform development.</p>
+  <p>When the SBS 2026 app (formerly NFQ Summit) needed to support both Android and iOS, I took full ownership of the rewrite — architecture, implementation, and delivery. No separate iOS team, no pair programming partner — just me, Kotlin 2.2, Claude Code, and a deadline. I chose Compose Multiplatform as the framework and Claude Code as my AI-powered development partner. Together, this combination fundamentally changed how I think about cross-platform development.</p>
 
   <h2>Why Compose Multiplatform Over Flutter?</h2>
   <p>The decision wasn't obvious. Flutter has a larger ecosystem and more battle-tested production apps. But as a solo developer on this project, I had clear advantages with Compose Multiplatform:</p>
   <ul>
     <li><strong>My existing Kotlin expertise:</strong> I was already fluent in Kotlin and Jetpack Compose from years of Android development. Zero learning curve for the UI layer meant I could move fast.</li>
-    <li><strong>Shared business logic:</strong> Kotlin Multiplatform (KMP) let me share not just UI, but networking, data models, and business logic. Flutter would have required rewriting everything in Dart — a luxury I didn't have as one developer.</li>
-    <li><strong>Native interop:</strong> For platform-specific features like alarm scheduling, I could drop into native code seamlessly using <code>expect</code>/<code>actual</code> declarations.</li>
+    <li><strong>Shared business logic:</strong> KMP let me share not just UI, but networking (Ktor), data models (Kotlinx Serialization), database (Room), and DI (Koin). Flutter would have required rewriting everything in Dart — a luxury I didn't have as one developer.</li>
+    <li><strong>Native interop:</strong> For platform-specific features like QR scanning and alarm scheduling, I could drop into native code seamlessly using <code>expect</code>/<code>actual</code> declarations.</li>
   </ul>
 
-  <h2>The Secret Weapon: Claude Code</h2>
+  <h2>AI-Powered Development with Claude Code</h2>
   <p>Being a solo developer on a cross-platform rewrite sounds impossible — until you add AI to the equation. I used Claude Code throughout the entire project, orchestrating multiple specialized agents in parallel:</p>
   <ul>
     <li><strong>Architecture planning:</strong> I'd describe a feature requirement and have Claude Code help me design the KMP module structure, <code>expect</code>/<code>actual</code> declarations, and shared composable hierarchy before writing a single line.</li>
-    <li><strong>Code generation:</strong> Boilerplate-heavy tasks like creating data models, API services, and repository layers across <code>commonMain</code>, <code>androidMain</code>, and <code>iosMain</code> were dramatically accelerated.</li>
-    <li><strong>Code review:</strong> Every major feature went through Claude Code review before integration — catching potential issues with recomposition, lifecycle management, and platform-specific gotchas.</li>
-    <li><strong>Debugging:</strong> When iOS-specific rendering issues appeared, I'd describe the behavior and get targeted solutions without needing deep iOS/UIKit expertise.</li>
+    <li><strong>Code generation:</strong> Boilerplate-heavy tasks like creating Room entities, DAOs, Ktor API services, and Koin modules across <code>commonMain</code>, <code>androidMain</code>, and <code>iosMain</code> were dramatically accelerated.</li>
+    <li><strong>Platform-specific code:</strong> Claude Code helped me implement the Android QR scanner with ML Kit and ZXing fallback, and the iOS scanner with AVFoundation — two completely different implementations sharing one interface.</li>
+    <li><strong>Code review:</strong> Every major feature went through Claude Code review — catching recomposition issues, lifecycle management bugs, and platform-specific gotchas before they shipped.</li>
+    <li><strong>ktlint compliance:</strong> Claude Code ensured all generated code passed <code>ktlintCheck</code> with the project's strict formatting rules (120-char line length, Compose naming conventions).</li>
   </ul>
   <p>Claude Code didn't replace my decision-making — it amplified my output. I still made every architectural choice, but the time from decision to implementation was cut dramatically.</p>
 
-  <h2>The Migration Strategy</h2>
-  <p>I didn't rewrite everything at once. Working solo with Claude Code as my AI assistant, I planned the migration in three focused phases to manage risk:</p>
-
-  <h3>Phase 1: Shared Data Layer (2 weeks)</h3>
-  <p>I extracted models, API services, and repositories into a shared KMP module. This was the lowest-risk, highest-value move:</p>
-  <pre><code>// shared/src/commonMain
-data class SummitEvent(
-    val id: String,
-    val title: String,
-    val speaker: String,
-    val startTime: Instant,
-    val room: String
-)
-
-// shared/src/commonMain
-class EventRepository(
-    private val apiClient: ApiClient
-) {
-    suspend fun getEvents(): List&lt;SummitEvent&gt; {
-        return apiClient.get("/events").body()
-    }
-}</code></pre>
-
-  <h3>Phase 2: Shared UI Components (3 weeks)</h3>
-  <p>I moved Compose UI components into the shared module. Most screens worked identically on both platforms. The project structure looked like:</p>
-  <pre><code>shared/
+  <h2>Project Structure</h2>
+  <p>The app follows Clean Architecture with a clear separation between data, domain, and presentation:</p>
+  <pre><code>composeApp/
 ├── src/
-│   ├── commonMain/
-│   │   ├── models/
-│   │   ├── network/
-│   │   └── ui/
-│   │       ├── components/
-│   │       ├── screens/
-│   │       └── theme/
-│   ├── androidMain/    # Platform-specific implementations
-│   └── iosMain/        # Platform-specific implementations
-androidApp/             # Android entry point
-iosApp/                 # iOS entry point (SwiftUI wrapper)</code></pre>
+│   ├── commonMain/kotlin/com/nfq/nfqsummit/
+│   │   ├── data/           # Room entities, DAOs, data sources
+│   │   ├── domain/         # Business logic and models
+│   │   ├── presentation/   # Screens, components, navigation
+│   │   └── utils/          # Utility functions and helpers
+│   ├── androidMain/        # Android-specific implementations
+│   └── iosMain/            # iOS-specific implementations
+iosApp/                     # iOS entry point (SwiftUI wrapper)</code></pre>
 
-  <h3>Phase 3: Platform-Specific Features (2 weeks)</h3>
-  <p>Alarm scheduling, deep linking, and platform permissions required platform-specific code. The <code>expect</code>/<code>actual</code> pattern made this clean:</p>
-  <pre><code>// commonMain
-expect class AlarmScheduler {
-    fun schedule(title: String, body: String, triggerAt: Instant)
-    fun cancel(alarmId: String)
-    val scheduledAlarms: StateFlow&lt;List&lt;Alarm&gt;&gt;
-}
+  <h2>The Hard Parts: Platform-Specific Features</h2>
 
-// androidMain
-actual class AlarmScheduler(context: Context) {
-    // AlarmManager + BroadcastReceiver implementation
-}
-
-// iosMain
-actual class AlarmScheduler() {
-    // UNUserNotificationCenter + UNCalendarNotificationTrigger implementation
-}</code></pre>
+  <h3>QR Code Scanner — Two Platforms, Two Implementations</h3>
+  <p>This was the most complex platform-specific feature. On Android, I needed two different implementations depending on API level:</p>
+  <ul>
+    <li><strong>Android 12+ (API 31+):</strong> Google ML Kit with Google Code Scanner — the modern, reliable approach</li>
+    <li><strong>Older Android:</strong> Custom ZXing-based scanner supporting QR, Code128, EAN, UPC, and more</li>
+    <li><strong>iOS:</strong> Native AVFoundation camera with custom overlay UI, permission dialogs, and settings integration</li>
+  </ul>
+  <p>Claude Code was invaluable here — it helped me implement the AVFoundation scanner on iOS without needing deep UIKit/SwiftUI expertise, while I focused on the Android ML Kit integration I knew well.</p>
 
   <h2>What Worked Brilliantly</h2>
 
   <h3>UI Code Sharing: ~95%</h3>
-  <p>The vast majority of the UI code is shared. Screens, components, themes, navigation — all written once, running on both platforms. The Compose rendering engine produces truly native-feeling results on iOS, which surprised me.</p>
-
-  <h3>Single Source of Truth for Business Logic</h3>
-  <p>No more worrying about "did I fix that bug on iOS too?" Every fix to shared code applies everywhere. As a solo developer, this was the biggest win — I didn't have to maintain two separate codebases with diverging logic.</p>
+  <p>Dashboard, Schedule, Explore, Blog, QR Scanner screens — all shared Compose code. Material3 theming with custom Gradion branding worked identically on both platforms. Navigation Compose handled routing seamlessly. The Compose rendering engine delivers smooth, native-quality performance on iOS — users can't tell it wasn't built with SwiftUI.</p>
 
   <h3>Solo Developer + AI Velocity</h3>
-  <p>Being a single developer delivering both platforms sounds daunting, but Compose Multiplatform combined with Claude Code made it not just manageable — it was fast. I could describe a feature, have Claude Code scaffold the shared and platform-specific layers, then focus my time on refining the UX and business logic. The iOS-specific code (AppDelegate, SwiftUI wrapper) was minimal — maybe 500 lines total. I went from being "the Android guy" to shipping a full cross-platform app single-handedly, with AI as my tireless pair programmer.</p>
+  <p>Being a single developer delivering both platforms sounds daunting, but Compose Multiplatform combined with Claude Code made it not just manageable — it was fast. I could describe a feature, have Claude Code scaffold the shared and platform-specific layers, then focus my time on refining the UX and business logic. I went from being "the Android guy" to shipping a full cross-platform production app single-handedly, with AI as my tireless pair programmer.</p>
 
   <h2>What Was Challenging</h2>
 
   <h3>iOS-Specific UI Expectations</h3>
-  <p>iOS users expect certain platform conventions — swipe-to-go-back, specific scroll physics, SF Symbols. I had to add platform checks for these:</p>
-  <pre><code>@Composable
-fun PlatformBackHandler(onBack: () -> Unit) {
-    if (getPlatform() == Platform.IOS) {
-        // iOS handles swipe-to-back natively
-    } else {
-        BackHandler(onBack = onBack)
-    }
-}</code></pre>
+  <p>iOS users expect certain platform conventions — swipe-to-go-back, specific scroll physics, native permission dialogs with settings redirect. I had to add platform checks and custom SwiftUI integration for these edge cases.</p>
 
   <h3>Build Times</h3>
-  <p>KMP builds are slower than single-platform builds, especially for iOS. I mitigated this with build caching and by running iOS builds less frequently during development — most UI work could be previewed on Android first.</p>
+  <p>KMP builds are slower than single-platform builds, especially for iOS. I worked around this with Gradle build caching and by running iOS builds less frequently during development — most UI work could be previewed on Android first.</p>
 
-  <h3>Library Ecosystem</h3>
-  <p>Not every Android library has a KMP equivalent. I had to find or build multiplatform alternatives for image loading, local storage, and analytics. The ecosystem is growing fast, but gaps still exist.</p>
+  <h3>Library Compatibility</h3>
+  <p>Not every Android library has a KMP equivalent. I chose carefully: Coil3 for images (multiplatform-ready), Ktor for networking (platform engines), Moko for permissions. For QR scanning, I accepted the need for fully separate implementations — some things are just inherently platform-specific.</p>
 
   <h2>Results</h2>
   <ul>
     <li><strong>95% code shared</strong> between Android and iOS</li>
-    <li><strong>Development time reduced by ~50%</strong> compared to maintaining two native codebases</li>
-    <li><strong>One developer + Claude Code</strong> delivering both platforms — no separate Android and iOS teams needed</li>
+    <li><strong>5 major screens</strong> — Dashboard, Schedule, Explore, Blog, QR Scanner</li>
+    <li><strong>Full offline support</strong> with Room database</li>
+    <li><strong>One developer + Claude Code</strong> delivering both platforms — no separate teams needed</li>
     <li><strong>Production-grade app</strong> deployed to both App Store and Play Store</li>
+    <li><strong>Android API 24+</strong> and <strong>iOS 13.0+</strong> support</li>
   </ul>
 
   <h2>Would I Do It Again?</h2>
-  <p>Absolutely. Compose Multiplatform is now my recommended approach for developers who already know Kotlin. For the Zsolt Lite project at Gradion Thailand, I chose Flutter instead because it was a client requirement and I wanted to expand my Flutter expertise. Both are valid choices — the right tool depends on the context.</p>
+  <p>Without hesitation. Compose Multiplatform with Kotlin 2.2, Room, Ktor, and Koin gave me a production-ready stack that shares almost everything. Claude Code turned what would have been a 3-person, 3-month project into a solo effort delivered on schedule.</p>
+  <p>For the Zsolt Lite project at Gradion Thailand, I chose Flutter instead because it was a client requirement and I wanted to expand my Flutter expertise. Both are valid choices — the right tool depends on the context.</p>
 
   <blockquote>Cross-platform doesn't mean compromise. With Compose Multiplatform and Claude Code, I shipped a better app faster as a solo developer — not a watered-down version of two native apps.</blockquote>
 
-  <p>The future of mobile development is multiplatform — and AI-assisted. The question isn't whether to share code between platforms — it's how much and with which tools. For Kotlin developers, Compose Multiplatform is the framework answer. And for solo developers who need to punch above their weight, Claude Code is the force multiplier that makes ambitious projects possible.</p>
+  <p>The future of mobile development is multiplatform — and AI-assisted. For Kotlin developers, Compose Multiplatform is the framework answer. And for solo developers who need to punch above their weight, Claude Code is the force multiplier that makes ambitious projects possible.</p>
 </article>
 
 <div class="blog-footer-nav">
