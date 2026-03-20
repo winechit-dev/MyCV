@@ -40,7 +40,7 @@
   <ul>
     <li><strong>My existing Kotlin expertise:</strong> I was already fluent in Kotlin and Jetpack Compose from years of Android development. Zero learning curve for the UI layer meant I could move fast.</li>
     <li><strong>Shared business logic:</strong> Kotlin Multiplatform (KMP) let me share not just UI, but networking, data models, and business logic. Flutter would have required rewriting everything in Dart — a luxury I didn't have as one developer.</li>
-    <li><strong>Native interop:</strong> For platform-specific features like push notifications, I could drop into native code seamlessly using <code>expect</code>/<code>actual</code> declarations.</li>
+    <li><strong>Native interop:</strong> For platform-specific features like alarm scheduling, I could drop into native code seamlessly using <code>expect</code>/<code>actual</code> declarations.</li>
   </ul>
 
   <h2>The Secret Weapon: Claude Code</h2>
@@ -93,22 +93,22 @@ androidApp/             # Android entry point
 iosApp/                 # iOS entry point (SwiftUI wrapper)</code></pre>
 
   <h3>Phase 3: Platform-Specific Features (2 weeks)</h3>
-  <p>Push notifications, deep linking, and platform permissions required platform-specific code. The <code>expect</code>/<code>actual</code> pattern made this clean:</p>
+  <p>Alarm scheduling, deep linking, and platform permissions required platform-specific code. The <code>expect</code>/<code>actual</code> pattern made this clean:</p>
   <pre><code>// commonMain
-expect class NotificationManager {
-    fun requestPermission()
-    fun scheduleNotification(title: String, body: String, time: Instant)
-    val permissionGranted: StateFlow&lt;Boolean&gt;
+expect class AlarmScheduler {
+    fun schedule(title: String, body: String, triggerAt: Instant)
+    fun cancel(alarmId: String)
+    val scheduledAlarms: StateFlow&lt;List&lt;Alarm&gt;&gt;
 }
 
 // androidMain
-actual class NotificationManager(context: Context) {
-    // Android FCM + NotificationChannel implementation
+actual class AlarmScheduler(context: Context) {
+    // AlarmManager + BroadcastReceiver implementation
 }
 
 // iosMain
-actual class NotificationManager() {
-    // APNs + UNUserNotificationCenter implementation
+actual class AlarmScheduler() {
+    // UNUserNotificationCenter + UNCalendarNotificationTrigger implementation
 }</code></pre>
 
   <h2>What Worked Brilliantly</h2>
