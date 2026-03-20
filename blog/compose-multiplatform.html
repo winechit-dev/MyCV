@@ -29,25 +29,35 @@
   <a href="../index.html#blog" class="blog-back">← Back to Blog</a>
   <span class="blog-header-tag">Compose Multiplatform</span>
   <h1 class="blog-header-title">Going Multiplatform: Rewriting an App with Compose Multiplatform</h1>
-  <p class="blog-header-meta"><span>Wine Chit Paing</span> · September 2025</p>
+  <p class="blog-header-meta"><span>Wine Chit Paing</span> · March 2026</p>
 </header>
 
 <article class="blog-content">
-  <p>When the SBS 2026 app (formerly NFQ Summit) needed to support both Android and iOS, we had a choice: maintain two native codebases, adopt Flutter, or try something newer — Compose Multiplatform. We chose the last option, and it fundamentally changed how I think about cross-platform development.</p>
+  <p>When the SBS 2026 app (formerly NFQ Summit) needed to support both Android and iOS, I took full ownership of the rewrite — architecture, implementation, and delivery. No separate iOS team, no pair programming partner — just me, Kotlin, Claude Code, and a deadline. I chose Compose Multiplatform as the framework and Claude Code as my AI-powered development partner. Together, this combination fundamentally changed how I think about cross-platform development.</p>
 
   <h2>Why Compose Multiplatform Over Flutter?</h2>
-  <p>The decision wasn't obvious. Flutter has a larger ecosystem and more battle-tested production apps. But our team had two strong advantages with Compose Multiplatform:</p>
+  <p>The decision wasn't obvious. Flutter has a larger ecosystem and more battle-tested production apps. But as a solo developer on this project, I had clear advantages with Compose Multiplatform:</p>
   <ul>
-    <li><strong>Existing Kotlin expertise:</strong> Our Android team was already fluent in Kotlin and Jetpack Compose. Zero learning curve for the UI layer.</li>
-    <li><strong>Shared business logic:</strong> Kotlin Multiplatform (KMP) let us share not just UI, but networking, data models, and business logic. Flutter would have required rewriting everything in Dart.</li>
-    <li><strong>Native interop:</strong> For platform-specific features like NFC, we could drop into native code seamlessly using <code>expect</code>/<code>actual</code> declarations.</li>
+    <li><strong>My existing Kotlin expertise:</strong> I was already fluent in Kotlin and Jetpack Compose from years of Android development. Zero learning curve for the UI layer meant I could move fast.</li>
+    <li><strong>Shared business logic:</strong> Kotlin Multiplatform (KMP) let me share not just UI, but networking, data models, and business logic. Flutter would have required rewriting everything in Dart — a luxury I didn't have as one developer.</li>
+    <li><strong>Native interop:</strong> For platform-specific features like push notifications, I could drop into native code seamlessly using <code>expect</code>/<code>actual</code> declarations.</li>
   </ul>
 
+  <h2>The Secret Weapon: Claude Code</h2>
+  <p>Being a solo developer on a cross-platform rewrite sounds impossible — until you add AI to the equation. I used Claude Code throughout the entire project, orchestrating multiple specialized agents in parallel:</p>
+  <ul>
+    <li><strong>Architecture planning:</strong> I'd describe a feature requirement and have Claude Code help me design the KMP module structure, <code>expect</code>/<code>actual</code> declarations, and shared composable hierarchy before writing a single line.</li>
+    <li><strong>Code generation:</strong> Boilerplate-heavy tasks like creating data models, API services, and repository layers across <code>commonMain</code>, <code>androidMain</code>, and <code>iosMain</code> were dramatically accelerated.</li>
+    <li><strong>Code review:</strong> Every major feature went through Claude Code review before integration — catching potential issues with recomposition, lifecycle management, and platform-specific gotchas.</li>
+    <li><strong>Debugging:</strong> When iOS-specific rendering issues appeared, I'd describe the behavior and get targeted solutions without needing deep iOS/UIKit expertise.</li>
+  </ul>
+  <p>Claude Code didn't replace my decision-making — it amplified my output. I still made every architectural choice, but the time from decision to implementation was cut dramatically.</p>
+
   <h2>The Migration Strategy</h2>
-  <p>We didn't rewrite everything at once. The migration happened in three phases:</p>
+  <p>I didn't rewrite everything at once. Working solo with Claude Code as my AI assistant, I planned the migration in three focused phases to manage risk:</p>
 
   <h3>Phase 1: Shared Data Layer (2 weeks)</h3>
-  <p>We extracted models, API services, and repositories into a shared KMP module. This was the lowest-risk, highest-value move:</p>
+  <p>I extracted models, API services, and repositories into a shared KMP module. This was the lowest-risk, highest-value move:</p>
   <pre><code>// shared/src/commonMain
 data class SummitEvent(
     val id: String,
@@ -67,7 +77,7 @@ class EventRepository(
 }</code></pre>
 
   <h3>Phase 2: Shared UI Components (3 weeks)</h3>
-  <p>We moved Compose UI components into the shared module. Most screens worked identically on both platforms. The project structure looked like:</p>
+  <p>I moved Compose UI components into the shared module. Most screens worked identically on both platforms. The project structure looked like:</p>
   <pre><code>shared/
 ├── src/
 │   ├── commonMain/
@@ -83,39 +93,39 @@ androidApp/             # Android entry point
 iosApp/                 # iOS entry point (SwiftUI wrapper)</code></pre>
 
   <h3>Phase 3: Platform-Specific Features (2 weeks)</h3>
-  <p>NFC functionality, push notifications, and deep linking required platform-specific code. The <code>expect</code>/<code>actual</code> pattern made this clean:</p>
+  <p>Push notifications, deep linking, and platform permissions required platform-specific code. The <code>expect</code>/<code>actual</code> pattern made this clean:</p>
   <pre><code>// commonMain
-expect class NfcReader {
-    fun startScanning()
-    fun stopScanning()
-    val scannedTag: StateFlow&lt;NfcTag?&gt;
+expect class NotificationManager {
+    fun requestPermission()
+    fun scheduleNotification(title: String, body: String, time: Instant)
+    val permissionGranted: StateFlow&lt;Boolean&gt;
 }
 
 // androidMain
-actual class NfcReader(context: Context) {
-    // Android NFC implementation
+actual class NotificationManager(context: Context) {
+    // Android FCM + NotificationChannel implementation
 }
 
 // iosMain
-actual class NfcReader() {
-    // CoreNFC implementation
+actual class NotificationManager() {
+    // APNs + UNUserNotificationCenter implementation
 }</code></pre>
 
   <h2>What Worked Brilliantly</h2>
 
-  <h3>UI Code Sharing: ~85%</h3>
-  <p>The vast majority of our UI code is shared. Screens, components, themes, navigation — all written once, running on both platforms. The Compose rendering engine produces truly native-feeling results on iOS, which surprised me.</p>
+  <h3>UI Code Sharing: ~95%</h3>
+  <p>The vast majority of the UI code is shared. Screens, components, themes, navigation — all written once, running on both platforms. The Compose rendering engine produces truly native-feeling results on iOS, which surprised me.</p>
 
   <h3>Single Source of Truth for Business Logic</h3>
-  <p>No more "did we fix that bug on iOS too?" Every fix to shared code applies everywhere. This alone justified the migration.</p>
+  <p>No more worrying about "did I fix that bug on iOS too?" Every fix to shared code applies everywhere. As a solo developer, this was the biggest win — I didn't have to maintain two separate codebases with diverging logic.</p>
 
-  <h3>Developer Velocity</h3>
-  <p>Our team of Android developers could now ship iOS features without learning Swift from scratch. The iOS-specific code (AppDelegate, SwiftUI wrapper) was minimal — maybe 500 lines total.</p>
+  <h3>Solo Developer + AI Velocity</h3>
+  <p>Being a single developer delivering both platforms sounds daunting, but Compose Multiplatform combined with Claude Code made it not just manageable — it was fast. I could describe a feature, have Claude Code scaffold the shared and platform-specific layers, then focus my time on refining the UX and business logic. The iOS-specific code (AppDelegate, SwiftUI wrapper) was minimal — maybe 500 lines total. I went from being "the Android guy" to shipping a full cross-platform app single-handedly, with AI as my tireless pair programmer.</p>
 
   <h2>What Was Challenging</h2>
 
   <h3>iOS-Specific UI Expectations</h3>
-  <p>iOS users expect certain platform conventions — swipe-to-go-back, specific scroll physics, SF Symbols. We had to add platform checks for these:</p>
+  <p>iOS users expect certain platform conventions — swipe-to-go-back, specific scroll physics, SF Symbols. I had to add platform checks for these:</p>
   <pre><code>@Composable
 fun PlatformBackHandler(onBack: () -> Unit) {
     if (getPlatform() == Platform.IOS) {
@@ -126,25 +136,25 @@ fun PlatformBackHandler(onBack: () -> Unit) {
 }</code></pre>
 
   <h3>Build Times</h3>
-  <p>KMP builds are slower than single-platform builds, especially for iOS. We mitigated this with build caching and by running iOS builds less frequently during development — most UI work could be previewed on Android first.</p>
+  <p>KMP builds are slower than single-platform builds, especially for iOS. I mitigated this with build caching and by running iOS builds less frequently during development — most UI work could be previewed on Android first.</p>
 
   <h3>Library Ecosystem</h3>
-  <p>Not every Android library has a KMP equivalent. We had to find or build multiplatform alternatives for image loading, local storage, and analytics. The ecosystem is growing fast, but gaps still exist.</p>
+  <p>Not every Android library has a KMP equivalent. I had to find or build multiplatform alternatives for image loading, local storage, and analytics. The ecosystem is growing fast, but gaps still exist.</p>
 
   <h2>Results</h2>
   <ul>
-    <li><strong>85% code shared</strong> between Android and iOS</li>
+    <li><strong>95% code shared</strong> between Android and iOS</li>
     <li><strong>Development time reduced by ~50%</strong> compared to maintaining two native codebases</li>
-    <li><strong>Single team</strong> delivering both platforms instead of separate Android and iOS teams</li>
+    <li><strong>One developer + Claude Code</strong> delivering both platforms — no separate Android and iOS teams needed</li>
     <li><strong>Production-grade app</strong> deployed to both App Store and Play Store</li>
   </ul>
 
   <h2>Would I Do It Again?</h2>
-  <p>Absolutely. Compose Multiplatform is now my recommended approach for teams that already know Kotlin. For the Zsolt Lite project at Gradion Thailand, we chose Flutter instead because it was a client requirement and the team wanted to expand their Flutter expertise. Both are valid choices — the right tool depends on the team and context.</p>
+  <p>Absolutely. Compose Multiplatform is now my recommended approach for developers who already know Kotlin. For the Zsolt Lite project at Gradion Thailand, I chose Flutter instead because it was a client requirement and I wanted to expand my Flutter expertise. Both are valid choices — the right tool depends on the context.</p>
 
-  <blockquote>Cross-platform doesn't mean compromise. With Compose Multiplatform, we shipped a better app faster — not a watered-down version of two native apps.</blockquote>
+  <blockquote>Cross-platform doesn't mean compromise. With Compose Multiplatform and Claude Code, I shipped a better app faster as a solo developer — not a watered-down version of two native apps.</blockquote>
 
-  <p>The future of mobile development is multiplatform. The question isn't whether to share code between platforms — it's how much and with which tool. For Kotlin teams, Compose Multiplatform is the answer I've been waiting for.</p>
+  <p>The future of mobile development is multiplatform — and AI-assisted. The question isn't whether to share code between platforms — it's how much and with which tools. For Kotlin developers, Compose Multiplatform is the framework answer. And for solo developers who need to punch above their weight, Claude Code is the force multiplier that makes ambitious projects possible.</p>
 </article>
 
 <div class="blog-footer-nav">
