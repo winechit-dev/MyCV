@@ -29,7 +29,7 @@
   <a href="../index.html#blog" class="blog-back">← Back to Blog</a>
   <span class="blog-header-tag">Architecture</span>
   <h1 class="blog-header-title">MVVM vs MVI: Choosing the Right Architecture for Your Android App</h1>
-  <p class="blog-header-meta"><span>Wine Chit Paing</span> · January 2026</p>
+  <p class="blog-header-meta"><span>Wine Chit Paing</span> · January 2023</p>
 </header>
 
 <article class="blog-content">
@@ -78,50 +78,61 @@ data class BookingUiState(
   <p>Model-View-Intent treats the UI as a state machine. Every user action is an Intent, every state transition is explicit, and the UI is always a pure function of state.</p>
 
   <h3>How I Structure MVI</h3>
-  <pre><code>class ChatCubit(
-    private val repository: ChatRepository
-) : Cubit&lt;ChatState&gt;(ChatState.Initial) {
+  <pre><code>class ClaimViewModel(
+    private val repository: ClaimRepository
+) : ViewModel() {
 
-    fun processIntent(intent: ChatIntent) {
+    private val _state = MutableStateFlow&lt;ClaimState&gt;(ClaimState.Initial)
+    val state: StateFlow&lt;ClaimState&gt; = _state.asStateFlow()
+
+    fun processIntent(intent: ClaimIntent) {
         when (intent) {
-            is ChatIntent.SendMessage -> sendMessage(intent.text)
-            is ChatIntent.LoadHistory -> loadHistory()
-            is ChatIntent.RetryFailed -> retryMessage(intent.messageId)
+            is ClaimIntent.LoadPolicy -> loadPolicy(intent.policyId)
+            is ClaimIntent.SelectClaimType -> selectType(intent.type)
+            is ClaimIntent.SubmitDocuments -> submitDocuments(intent.docs)
+            is ClaimIntent.ConfirmClaim -> confirmClaim()
         }
     }
 
-    private fun sendMessage(text: String) {
-        val currentMessages = (state as? ChatState.Active)?.messages ?: return
-        emit(ChatState.Active(
-            messages = currentMessages + PendingMessage(text),
-            isStreaming = true
-        ))
-        // Stream response via SSE...
+    private fun confirmClaim() {
+        val current = (_state.value as? ClaimState.ReadyToSubmit) ?: return
+        _state.value = ClaimState.Submitting(current.claim)
+        viewModelScope.launch {
+            repository.submitClaim(current.claim)
+                .onSuccess { result ->
+                    _state.value = ClaimState.Submitted(result)
+                }
+                .onFailure { error ->
+                    _state.value = ClaimState.SubmissionFailed(current.claim, error.message)
+                }
+        }
     }
 }
 
-sealed class ChatState {
-    object Initial : ChatState()
-    object Loading : ChatState()
-    data class Active(
-        val messages: List&lt;ChatMessage&gt;,
-        val isStreaming: Boolean = false
-    ) : ChatState()
-    data class Error(val message: String) : ChatState()
+sealed class ClaimState {
+    object Initial : ClaimState()
+    object Loading : ClaimState()
+    data class PolicyLoaded(val policy: InsurancePolicy) : ClaimState()
+    data class TypeSelected(val policy: InsurancePolicy, val type: ClaimType) : ClaimState()
+    data class ReadyToSubmit(val claim: ClaimRequest) : ClaimState()
+    data class Submitting(val claim: ClaimRequest) : ClaimState()
+    data class Submitted(val result: ClaimResult) : ClaimState()
+    data class SubmissionFailed(val claim: ClaimRequest, val error: String?) : ClaimState()
 }
 
-sealed class ChatIntent {
-    data class SendMessage(val text: String) : ChatIntent()
-    object LoadHistory : ChatIntent()
-    data class RetryFailed(val messageId: String) : ChatIntent()
+sealed class ClaimIntent {
+    data class LoadPolicy(val policyId: String) : ClaimIntent()
+    data class SelectClaimType(val type: ClaimType) : ClaimIntent()
+    data class SubmitDocuments(val docs: List&lt;Document&gt;) : ClaimIntent()
+    object ConfirmClaim : ClaimIntent()
 }</code></pre>
 
   <h3>When MVI Shines</h3>
   <ul>
-    <li><strong>Complex state transitions</strong> — chat, streaming, multi-step flows</li>
-    <li><strong>State needs to be predictable</strong> — every possible state is explicitly defined</li>
-    <li><strong>Debugging is critical</strong> — you can log every intent and state change</li>
-    <li><strong>Multiple data sources</strong> — SSE streams, WebSockets, push notifications updating the same screen</li>
+    <li><strong>Complex state transitions</strong> — insurance claim flows with conditional form steps, document uploads, and multi-stage validation</li>
+    <li><strong>State needs to be predictable</strong> — every possible state is explicitly defined, critical for financial products where wrong state = wrong data submitted</li>
+    <li><strong>Debugging is critical</strong> — you can log every intent and state change, essential when tracing why a claim submission failed or a policy loaded incorrectly</li>
+    <li><strong>Multiple data sources</strong> — policy data from API, cached user details from local DB, and real-time claim status updates all merging into one screen</li>
   </ul>
 
   <h2>Real-World Comparison</h2>
@@ -142,11 +153,8 @@ sealed class ChatIntent {
     <tr style="border-bottom:1px solid #eee;">
       <td style="padding:0.75rem 0;">AIA+ Myanmar</td><td style="padding:0.75rem 0;">MVI</td><td style="padding:0.75rem 0;">Insurance forms with conditional logic and validation</td>
     </tr>
-    <tr style="border-bottom:1px solid #eee;">
-      <td style="padding:0.75rem 0;">Better HR</td><td style="padding:0.75rem 0;">MVVM</td><td style="padding:0.75rem 0;">Standard CRUD with chat feature</td>
-    </tr>
     <tr>
-      <td style="padding:0.75rem 0;">Zsolt Lite</td><td style="padding:0.75rem 0;">MVI (BLoC)</td><td style="padding:0.75rem 0;">AI chat streaming, auth flows, onboarding state machine</td>
+      <td style="padding:0.75rem 0;">Better HR</td><td style="padding:0.75rem 0;">MVVM</td><td style="padding:0.75rem 0;">Standard CRUD with chat feature</td>
     </tr>
   </table>
 
